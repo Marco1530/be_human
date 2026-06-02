@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "958027158357",
+    "project_id": "behuman-e19ff",
+    "storage_bucket": "behuman-e19ff.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:958027158357:android:1517287a92d5207a7e95dc",
+        "android_client_info": {
+          "package_name": "com.example.be_human"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBIove732oMk1NU9IZ0IScnXQYSzFGwdSo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
