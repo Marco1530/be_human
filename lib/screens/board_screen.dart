@@ -24,6 +24,18 @@ class BoardScreen extends StatefulWidget {
 class _BoardScreenState extends State<BoardScreen> {
   final _firestoreService = FirestoreService();
   final _textController = TextEditingController();
+  final List<Color> postColors = [
+    Color(0xFFFFF59D), // amarillo
+    Color(0xFFF8BBD0), // rosa
+    Color(0xFFC5CAE9), // azul
+    Color(0xFFB2DFDB), // verde
+    Color(0xFFD1C4E9), // lila
+    Color(0xFFFFCCBC), // naranja
+    Color(0xFFFFE0B2), // durazno
+    Color(0xFFDCEDC8), // lima suave
+    Color(0xFFB3E5FC), // celeste
+    Color(0xFFE6EE9C), // amarillo verdoso
+  ]; //estos son los colores que se usaran para selecciona los post its
   bool _isMyBoard = false;
 
   @override
@@ -33,20 +45,59 @@ class _BoardScreenState extends State<BoardScreen> {
   }
 
   Future<void> _addTextPost() async {
+    int selectedColor = 0; //esto ubica el color indefinido antes crear un post
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Nuevo post'),
-        content: TextField(
-          controller: _textController,
-          maxLines: 4,
-          decoration: InputDecoration(
-            hintText: 'Escribe algo bonito...',
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
+        title: const Text('Nuevo post'), //titulo de la ventana emergente
+          content: StatefulBuilder(
+            builder: (context, setDialogState) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: _textController,
+                    maxLines: 4,
+                    decoration: InputDecoration(
+                      hintText: 'Escribe algo bonito...',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  const Text('Color del post-it'),
+
+                  const SizedBox(height: 10),
+
+                  Wrap(
+                    spacing: 10,
+                    children: List.generate(postColors.length, (index) {
+                      return GestureDetector(
+                        onTap: () {
+                          setDialogState(() {
+                            selectedColor = index;
+                          });
+                        },
+                        child: CircleAvatar(
+                          backgroundColor: postColors[index],
+                          child: selectedColor == index
+                              ? const Icon(
+                            Icons.check,
+                            color: Colors.black,
+                          )
+                              : null,
+                        ),
+                      );
+                    }),
+                  ),
+                ],
+              );
+            },
           ),
-        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -55,24 +106,35 @@ class _BoardScreenState extends State<BoardScreen> {
           ElevatedButton(
             onPressed: () async {
               if (_textController.text.trim().isEmpty) return;
+
+              final now = DateTime.now();
+
+              print("CREATED AT: $now");
+              print(
+                "EXPIRES AT: ${now.add(const Duration(hours: 24))}",
+              );
+
               final post = PostModel(
                 id: const Uuid().v4(),
                 authorId: widget.currentUser.uid,
                 authorName: widget.currentUser.displayName,
                 boardOwnerId: widget.boardOwner.uid,
                 text: _textController.text.trim(),
-                createdAt: DateTime.now(),
+                expiresAt: now.add(
+                  const Duration(hours: 24),
+                ),
+                colorIndex: selectedColor,
+                createdAt: now,
               );
+
               await _firestoreService.addPost(post);
+
               _textController.clear();
+
               if (mounted) Navigator.pop(context);
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFE91E8C),
-              foregroundColor: Colors.white,
-            ),
             child: const Text('Publicar'),
-          ),
+          )
         ],
       ),
     );
@@ -94,6 +156,10 @@ class _BoardScreenState extends State<BoardScreen> {
         authorId: widget.currentUser.uid,
         authorName: widget.currentUser.displayName,
         boardOwnerId: widget.boardOwner.uid,
+        expiresAt: DateTime.now().add(
+          const Duration(hours: 24),
+        ),
+        colorIndex: 0,
         imageUrl: url,
         createdAt: DateTime.now(),
       );
@@ -124,10 +190,23 @@ class _BoardScreenState extends State<BoardScreen> {
       body: StreamBuilder<List<PostModel>>(
         stream: _firestoreService.getBoardPosts(widget.boardOwner.uid),
         builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Scaffold(
+              body: Center(
+                child: Text(
+                  'ERROR: ${snapshot.error}',
+                ),
+              ),
+            );
+          }
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
-          final posts = snapshot.data ?? [];
+          final posts = (snapshot.data ?? [])
+              .where(
+                (post) => post.expiresAt.isAfter(DateTime.now()),
+          )
+              .toList();
           if (posts.isEmpty) {
             return Center(
               child: Column(
@@ -175,7 +254,7 @@ class _BoardScreenState extends State<BoardScreen> {
   Widget _buildPostCard(PostModel post) {
     return Container(
       decoration: BoxDecoration(
-        color: _getPostColor(post.authorId),
+        color: postColors[post.colorIndex],
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(

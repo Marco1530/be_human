@@ -1,3 +1,6 @@
+//imports
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class PostModel {
   final String id;
   final String authorId;
@@ -6,18 +9,26 @@ class PostModel {
   final String? text;
   final String? imageUrl;
   final String? videoUrl;
+  final DateTime expiresAt;
+
+  // NUEVO
+  final int colorIndex;
 
   final DateTime createdAt;
-
 
   PostModel({
     required this.id,
     required this.authorId,
     required this.authorName,
     required this.boardOwnerId,
+    required this.expiresAt,
     this.text,
     this.imageUrl,
     this.videoUrl,
+
+    // NUEVO
+    required this.colorIndex,
+
     required this.createdAt,
   });
 
@@ -30,7 +41,10 @@ class PostModel {
       'text': text,
       'imageUrl': imageUrl,
       'videoUrl': videoUrl,
-      'createdAt': createdAt.toIso8601String(),
+
+      'expiresAt': Timestamp.fromDate(expiresAt),
+      'createdAt': Timestamp.fromDate(createdAt),
+      'colorIndex': colorIndex,
     };
   }
 
@@ -43,7 +57,14 @@ class PostModel {
       text: map['text'],
       imageUrl: map['imageUrl'],
       videoUrl: map['videoUrl'],
-      createdAt: DateTime.parse(map['createdAt']),
+
+      expiresAt: map['expiresAt'] != null
+          ? (map['expiresAt'] as Timestamp).toDate()
+          : DateTime.now().add(const Duration(hours: 24)),
+
+      colorIndex: map['colorIndex'] ?? 0,
+
+      createdAt: (map['createdAt'] as Timestamp).toDate(),
     );
   }
 }
