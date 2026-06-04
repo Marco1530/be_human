@@ -6,6 +6,8 @@ import 'dart:io';
 import '../models/user_model.dart';
 import '../models/post_model.dart';
 import '../services/firestore_service.dart';
+import 'package:home_widget/home_widget.dart';
+
 
 class BoardScreen extends StatefulWidget {
   final UserModel boardOwner;
@@ -129,6 +131,20 @@ class _BoardScreenState extends State<BoardScreen> {
 
               await _firestoreService.addPost(post);
 
+              await HomeWidget.saveWidgetData<String>(
+                'author',
+                post.authorName,
+              );
+
+              await HomeWidget.saveWidgetData<String>(
+                'message',
+                post.text ?? '',
+              );
+
+              await HomeWidget.updateWidget(
+                androidName: 'BeHumanWidgetProvider',
+              );
+
               _textController.clear();
 
               if (mounted) Navigator.pop(context);
@@ -179,151 +195,222 @@ class _BoardScreenState extends State<BoardScreen> {
   Widget build(BuildContext context) {
     final isMyBoard = widget.boardOwner.uid == widget.currentUser.uid;
     return Scaffold(
-      backgroundColor: const Color(0xFFFFF0F5),
       appBar: AppBar(
-        backgroundColor: const Color(0xFFE91E8C),
+        backgroundColor: const Color(0xFFE91E8C), //Cambia el tapBar de los post its
         foregroundColor: Colors.white,
         title: Text(
           isMyBoard ? 'Mi board' : 'Board de ${widget.boardOwner.displayName}',
         ),
       ),
-      body: StreamBuilder<List<PostModel>>(
-        stream: _firestoreService.getBoardPosts(widget.boardOwner.uid),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return Scaffold(
-              body: Center(
-                child: Text(
-                  'ERROR: ${snapshot.error}',
+
+      body: Container(
+
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFFFFFF), //color de fondo de post it
+              Color(0xFFFFFF), //degradado
+            ],
+          ),
+        ),
+
+        child: StreamBuilder<List<PostModel>>(
+          stream: _firestoreService.getBoardPosts(widget.boardOwner.uid),
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return Center(child: Text('ERROR: ${snapshot.error}'));
+            }
+
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            final posts = (snapshot.data ?? [])
+                .where((post) => post.expiresAt.isAfter(DateTime.now()))
+                .toList();
+
+            if (posts.isEmpty) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: const [
+                    Text('📭', style: TextStyle(fontSize: 64)),
+                    SizedBox(height: 16),
+                  ],
                 ),
+              );
+            }
+
+            return GridView.builder(
+              padding: const EdgeInsets.all(16),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
               ),
-            );
-          }
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final posts = (snapshot.data ?? [])
-              .where(
-                (post) => post.expiresAt.isAfter(DateTime.now()),
-          )
-              .toList();
-          if (posts.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text('📭', style: TextStyle(fontSize: 64)),
-                  const SizedBox(height: 16),
-                  Text(
-                    isMyBoard
-                        ? 'Aun no tienes posts'
-                        : 'Se el primero en dejar un post',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.grey, fontSize: 16),
+              itemCount: posts.length,
+              itemBuilder: (context, index) {
+                return TweenAnimationBuilder(
+                  duration: Duration(
+                    milliseconds: 300 + (index * 80),
                   ),
-                ],
-              ),
+                  tween: Tween<double>(
+                    begin: 0,
+                    end: 1,
+                  ),
+                  builder: (context, value, child) { //esto hace la animacion de caida
+                    final bounce =
+                    Curves.elasticOut.transform(value);
+
+                    return Transform.translate(
+                      offset: Offset(
+                        0,
+                        (1 - value) * -120,
+                      ),
+                      child: Transform.scale(
+                        scale: bounce,
+                        child: Opacity(
+                          opacity: value,
+                          child: child,
+                        ),
+                      ),
+                    );
+                  },
+                  child: _buildPostCard(posts[index]),
+                );
+              },
             );
-          }
-          return GridView.builder(
-            padding: const EdgeInsets.all(16),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-            ),
-            itemCount: posts.length,
-            itemBuilder: (context, index) {
-              return _buildPostCard(posts[index]);
-            },
-          );
-        },
+          },
+        ),
       ),
-      floatingActionButton: !_isMyBoard
+      floatingActionButton: !_isMyBoard //EL botton de agregar un post it
           ? FloatingActionButton.extended(
-              onPressed: () => _showPostOptions(),
-              backgroundColor: const Color(0xFFE91E8C),
-              foregroundColor: Colors.white,
-              icon: const Icon(Icons.add),
-              label: const Text('Dejar post'),
-            )
+        onPressed: _showPostOptions,
+        backgroundColor: const Color(0xFFE91E8C),
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.add),
+        label: const Text('Dejar post'),
+      )
           : null,
     );
   }
 
-  Widget _buildPostCard(PostModel post) {
-    return Container(
-      decoration: BoxDecoration(
-        color: postColors[post.colorIndex],
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 8,
-            offset: const Offset(2, 4),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 14,
-                  backgroundColor: Colors.white,
-                  child: Text(
-                    post.authorName.isNotEmpty
-                        ? post.authorName[0].toUpperCase()
-                        : '?',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    post.authorName,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
+  Widget _buildPostCard(PostModel post) { //esto es el formato del post It
+    final rotation = ((post.id.hashCode % 10) - 5) * 0.01;
+
+
+    return Transform.rotate(
+      angle: rotation,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              color: postColors[post.colorIndex],
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.15),
+                  blurRadius: 10,
+                  offset: const Offset(3, 5),
                 ),
               ],
             ),
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 14,
+                        backgroundColor: Colors.white,
+                        child: Text(
+                          post.authorName.isNotEmpty
+                              ? post.authorName[0].toUpperCase()
+                              : '?',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          post.authorName,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                            color: Colors.black87,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
 
-            const SizedBox(height: 12),
+                  const SizedBox(height: 12),
 
-            Expanded(
-              child: Text(
-                post.text ?? '',
-                style: const TextStyle(
-                  fontSize: 15,
-                  color: Colors.black87,
+                  Expanded(
+                    child: Text(
+                      post.text ?? '',
+                      style: const TextStyle(
+                        fontSize: 15,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ),
+
+                  Align(
+                    alignment: Alignment.bottomRight,
+                    child: Text(
+                      _formatDate(post.createdAt),
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Colors.black54,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+
+          Positioned( //aca se define la cinta sobre los post it
+            top: -8,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Transform.rotate(
+                angle: -0.08,
+                child: Container(
+                  width: 50,
+                  height: 18,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(3),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.7),
+                      width: 1,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.08),
+                        blurRadius: 3,
+                        offset: const Offset(1, 1),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
-
-            const SizedBox(height: 8),
-
-            Align(
-              alignment: Alignment.bottomRight,
-              child: Text(
-                _formatDate(post.createdAt),
-                style: const TextStyle(
-                  fontSize: 11,
-                  color: Colors.black54,
-                ),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

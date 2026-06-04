@@ -55,9 +55,9 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
     return Scaffold(
-      backgroundColor: const Color(0xFFFFF0F5),
+      backgroundColor: const Color(0xFFFFF0F5), //El color del fondo del home
       appBar: AppBar(
-        backgroundColor: const Color(0xFFE91E8C),
+        backgroundColor: const Color(0xFFE91E8C), //el color del Topbar en el home
         foregroundColor: Colors.white,
         title: const Text('BeHuman'),
         actions: [
